@@ -11,8 +11,15 @@
 #include "Kismet/GameplayStatics.h"
 #include "MotionControllerComponent.h"
 #include "XRMotionControllerBase.h" // for FXRMotionControllerBase::RightHandSourceId
+#include "Stat.h"
+#include "Items/Weapon.h"
+#include "Items/Armour/Armour.h"
+#include "Datatables/DataTables.h"
+#include "Items/ItemContainer.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
+
+const FText ASurvivalGameCharacter::healthStatName = GetTextFromLiteral(TEXT("Health"));
 
 //////////////////////////////////////////////////////////////////////////
 // ASurvivalGameCharacter
@@ -107,6 +114,44 @@ void ASurvivalGameCharacter::BeginPlay()
 
 //////////////////////////////////////////////////////////////////////////
 // Input
+
+
+void ASurvivalGameCharacter::SetupWithLoadout(int32 loadoutID) {
+	FLoadout* ourloadout = nullptr;
+
+	for (FLoadout* loadout : UDataTables::GetInstance()->GetLoadouts()) {
+		if (loadout->characterID == this->ID) {
+			ourloadout = loadout;
+			break;
+		}
+	}
+
+	if (ourloadout != nullptr) {
+		SetMaxHealth(ourloadout->maxHealth);
+
+		for (TPair<EPosition, int32>& weaponPosition : ourloadout->equippedWeapons) {
+			TPair<EPosition, UWeapon*> weaponPair;
+			weaponPair.Key = weaponPosition.Key;
+			weaponPair.Value = Cast<UWeapon>(UItemContainer::LoadItem(weaponPosition.Value));
+
+			GetWeapons().Add(weaponPair);
+		}
+
+		/*for (int32 armourID : ourloadout->equippedArmour) {
+			UArmour* armourFound = Cast<UArmour>(UItemContainer::LoadItem(armourID));
+
+			if (armourFound != nullptr) {
+				TPair<EPosition, UArmour*> armourPair;
+				armourPair.Key = armourFound->GetArmourSpecification()->armourPosition;
+				armourPair.Value = armourFound;
+
+				GetArmour().Add(armourPair);
+			}
+		}*/
+
+		MaximiseStats();
+	}
+}
 
 void ASurvivalGameCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
@@ -298,3 +343,93 @@ bool ASurvivalGameCharacter::EnableTouchscreenMovement(class UInputComponent* Pl
 	
 	return false;
 }
+
+UStat* ASurvivalGameCharacter::GetStatByName(FText statName)
+{
+	for (UStat* stat : stats) {
+		if (stat->GetStatName().EqualTo(statName))
+			return stat;
+	}
+	return NewObject<UStat>();
+}
+
+void ASurvivalGameCharacter::ChangeHealth(float healthChange, bool heals)
+{
+	// Need to add in armour damage reduction
+	float healthChangeAmout;
+
+	if (!heals) {
+		healthChangeAmout = -healthChange;
+	}
+	else {
+		healthChangeAmout = healthChange;
+	}
+
+	SetCurrentHealth(GetCurrentHealth() - healthChangeAmout);
+}
+
+float ASurvivalGameCharacter::GetCurrentHealth()
+{
+	return GetHealthStat()->GetCurrentValue();
+}
+
+UStat* ASurvivalGameCharacter::GetHealthStat()
+{
+	return GetStatByName(ASurvivalGameCharacter::healthStatName);
+}
+
+FText ASurvivalGameCharacter::GetTextFromLiteral(FName text)
+{
+	return FText::FromName(text);
+}
+
+void ASurvivalGameCharacter::SetCurrentHealth(float val)
+{
+	GetHealthStat()->SetCurrentValue(val);
+}
+
+float ASurvivalGameCharacter::GetMaxHealth()
+{
+	return GetHealthStat()->GetMaxValue();
+}
+
+void ASurvivalGameCharacter::SetMaxHealth(float val)
+{
+	GetHealthStat()->SetMaxValue(val);
+}
+
+void ASurvivalGameCharacter::MaximiseStats()
+{
+	SetCurrentHealth(GetMaxHealth());
+}
+
+void ASurvivalGameCharacter::AddStat(UStat* newStat)
+{
+	if (GetStatByName(newStat->GetStatName()) == NULL)
+		GetStats().Add(newStat);
+}
+
+bool ASurvivalGameCharacter::IsAlive()
+{
+	return GetCurrentHealth() > 0;
+}
+
+void ASurvivalGameCharacter::InteractWithTarget(ASurvivalGameCharacter* target)
+{
+	// Assumed Enemy for now. Need to implement friend foe system
+	if (CanAttack() && IsAlive() && target->IsAlive()) {
+		TArray<UWeapon*> weapons;
+
+		equipedWeapons.GenerateValueArray(weapons);
+
+		for (UWeapon* weapon : weapons) {
+			weapon->AttackTarget(target);
+		}
+	}
+}
+
+bool ASurvivalGameCharacter::CanAttack()
+{
+	return equipedWeapons.Num() > 0;
+}
+
