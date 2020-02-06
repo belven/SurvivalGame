@@ -16,6 +16,7 @@
 #include "Items/Armour/Armour.h"
 #include "Datatables/DataTables.h"
 #include "Items/ItemContainer.h"
+#include "Engine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -164,6 +165,11 @@ void ASurvivalGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 
 	// Bind fire event
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ASurvivalGameCharacter::OnFire);
+	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ASurvivalGameCharacter::StopFire);
+
+	//Bind aim down sights event 
+	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &ASurvivalGameCharacter::OnAim);
+	PlayerInputComponent->BindAction("Aim", IE_Released, this, &ASurvivalGameCharacter::OnHip);
 
 	// Enable touchscreen input
 	EnableTouchscreenMovement(PlayerInputComponent);
@@ -183,36 +189,133 @@ void ASurvivalGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	PlayerInputComponent->BindAxis("LookUpRate", this, &ASurvivalGameCharacter::LookUpAtRate);
 }
 
+//******************************************************These are all weapon related functions***********************************************************************//
+
+//This requires, for prototyping purposes, the individual building the game to set the array values during runtime to find correct weapon locations. This allows 
+//the prototyper freedom to experiemnt with as many weapons as they wish. blueprint callable allows weapons to be equipped with minimal effort by the prototyper
+
+//this is used to test for automatic firing status
+void ASurvivalGameCharacter::CallFullAuto()
+{
+	if (isFiring == true) 
+	{
+		FullyAutomaticFire();
+	}
+}
+
+//This is callable by blueprints; Sets the mesh and transforms of the player's held weapon upon switching weapons, as well as how much damage should be dealt.
+void ASurvivalGameCharacter::changeGunEquipped(int gunNumber, int weaponDamage, int weapontype, int currentRateOfFire)
+{
+	FP_Gun->SetSkeletalMesh(gunList[gunNumber]);
+	FP_Gun->SetRelativeRotation(relativeGunRotations[gunNumber]);
+	FP_Gun->SetRelativeLocation(relativeGunLocation[gunNumber]);
+	FP_Gun->SetWorldScale3D(gunScale[gunNumber]);	
+	FP_MuzzleLocation->SetRelativeLocation(relativeMuzzleLocation[gunNumber]);
+	//DamageToDealToEnemy = weaponDamage
+	currentFireType = weapontype;
+	rateOfFire = currentRateOfFire;
+}
+
+//called when left mouse button is released
+void ASurvivalGameCharacter::StopFire()
+{
+	isFiring = false;
+}
+
+//called at left mouse button click for firing
 void ASurvivalGameCharacter::OnFire()
 {
-	// try and fire a projectile
-	if (ProjectileClass != NULL)
+	if (currentFireType == 0) //semi-automatic
 	{
-		UWorld* const World = GetWorld();
-		if (World != NULL)
-		{
-			if (bUsingMotionControllers)
-			{
-				const FRotator SpawnRotation = VR_MuzzleLocation->GetComponentRotation();
-				const FVector SpawnLocation = VR_MuzzleLocation->GetComponentLocation();
-				World->SpawnActor<ASurvivalGameProjectile>(ProjectileClass, SpawnLocation, SpawnRotation);
-			}
-			else
-			{
-				const FRotator SpawnRotation = GetControlRotation();
-				// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
-				const FVector SpawnLocation = ((FP_MuzzleLocation != nullptr) ? FP_MuzzleLocation->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
+		SemiAutomaticFire();
+	}
+	else if (currentFireType == 1) //fully automatic
+	{
+		//fire a shot immediately
+		firearmTimer = 0;
 
-				//Set Spawn Collision Handling Override
-				FActorSpawnParameters ActorSpawnParams;
-				ActorSpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
-
-				// spawn the projectile at the muzzle
-				World->SpawnActor<ASurvivalGameProjectile>(ProjectileClass, SpawnLocation, SpawnRotation, ActorSpawnParams);
-			}
-		}
+		//lets the function that checks this bool know that the trigger is being pressed on an automatic weapon
+		isFiring = true;
 	}
 
+}
+
+//These 2 functions handle aiming
+void ASurvivalGameCharacter::OnAim()
+{
+	FirstPersonCameraComponent->SetFieldOfView(70.0f);
+	FP_Gun->SetVisibility(false);
+	//FP_GunADS->SetVisibility(true);
+}
+
+void ASurvivalGameCharacter::OnHip()
+{
+	FirstPersonCameraComponent->SetFieldOfView(90.0f);
+	FP_Gun->SetVisibility(true);
+	//FP_GunADS->SetVisibility(false);
+}
+
+//this creates a raycast upon firing for dealing damage, calls other related functions; this is called by semiautomaticfire and fullyautomaticfire
+void ASurvivalGameCharacter::DoRayCast() 
+{
+	FHitResult* HitResult = new FHitResult();
+	FVector StartTrace = FirstPersonCameraComponent->GetComponentLocation();
+	FVector forwardVector = FirstPersonCameraComponent->GetForwardVector();
+	FVector EndTrace = ((forwardVector*20000.f) + StartTrace);
+	FCollisionQueryParams* TraceParams = new FCollisionQueryParams();
+
+
+
+	//this is a raycast from the player character camera
+	if (GetWorld()->LineTraceSingleByChannel(*HitResult, StartTrace, EndTrace, ECC_Visibility, *TraceParams))
+	{
+		//makes line
+		DrawDebugLine(GetWorld(), StartTrace, EndTrace, FColor(255, 0, 0), true);
+		//makes message
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("You hit: %s"), *HitResult->Actor->GetName()));
+
+		//ASurvivalGameEnemyBase* TestTarget = Cast<AMyEnemyBase>(HitResult->Actor.Get());
+
+		//if (TestTarget != NULL && !TestTarget->IsPendingKill())
+		//{
+		//	TestTarget->DamageTarget(gunBaseDamage);
+		//}
+
+		FVector_NetQuantizeNormal Locs;
+		FRotator Rots;
+		Locs = HitResult->Location;
+		//makes bullet impact, animation, sound, and muzzle flash + gun smoke
+		SpawnBulletImpact(Locs, Rots);
+		FireSoundAndAnimation();
+		SpawnGunSmoke();
+		
+	}
+}
+
+//called by onfire
+void ASurvivalGameCharacter::SemiAutomaticFire() 
+{
+	DoRayCast();
+	//ammoInMagazine -=1;
+}
+//called by a timer or tick when isFiring = true
+void ASurvivalGameCharacter::FullyAutomaticFire() 
+{
+	firearmTimer -= 1;
+	if (firearmTimer < 5)
+	{
+		DoRayCast();
+		//ammoInMagazine -=1;
+
+		//reset timer, buffer between shots. rateOfFire is set on weapon switch 
+		firearmTimer = rateOfFire;
+	}
+	
+}
+
+//this is called by doraycast
+void ASurvivalGameCharacter::FireSoundAndAnimation() 
+{
 	// try and play the sound if specified
 	if (FireSound != NULL)
 	{
@@ -230,6 +333,29 @@ void ASurvivalGameCharacter::OnFire()
 		}
 	}
 }
+
+//this is called by doraycast
+void ASurvivalGameCharacter::SpawnGunSmoke()
+{
+	FRotator SpawnRotation;
+	SpawnRotation = GetControlRotation();
+
+	FVector x;
+	x = ((FP_MuzzleLocation != nullptr) ? FP_MuzzleLocation->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
+
+
+	FActorSpawnParameters SpawnParams;
+	AActor* SPawnedActorRef = GetWorld()->SpawnActor<AActor>(GunSmoke, x, SpawnRotation, SpawnParams);
+}
+
+//this is called by doraycast
+void ASurvivalGameCharacter::SpawnBulletImpact(FVector Loc, FRotator Rot)
+{
+	FActorSpawnParameters SpawnParams;
+	AActor* SpawnedActorRef = GetWorld()->SpawnActor<AActor>(BulletImpact, Loc, Rot, SpawnParams);
+}
+
+//****************************************************************END Weapon Mechanics*******************************************************************************//
 
 void ASurvivalGameCharacter::OnResetVR()
 {
@@ -340,7 +466,7 @@ bool ASurvivalGameCharacter::EnableTouchscreenMovement(class UInputComponent* Pl
 		//PlayerInputComponent->BindTouch(EInputEvent::IE_Repeat, this, &ASurvivalGameCharacter::TouchUpdate);
 		return true;
 	}
-	
+
 	return false;
 }
 

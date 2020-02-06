@@ -170,6 +170,75 @@ public:
 		void SetArmour(TMap<EPosition, UArmour*> val) { armour = val; }
 	void ChangeHealth(float healthChange, bool heals);
 
+	//*****************Gun Mesh Arrays********************//
+	//**These are used for changing the gun skeleton and positioning during gameplay**//
+
+	//This array holds skeletal meshes for weapons 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		TArray<USkeletalMesh*> gunList;
+
+	//This array holds scale for weapon meshes; Find proper numbers and these can be hardcoded
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		TArray<FVector> gunScale;
+
+	//This array holds location for weapon meshes relative to FP_Gun; Find proper numbers and these can be hardcoded
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		TArray<FVector> relativeGunLocation;
+
+	//This array holds location for gun muzzle to determine location of muzzle flash and smoke
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		TArray<FVector> relativeMuzzleLocation;
+
+	//This array holds rotation for weapon meshes; Find proper numbers and these can be hardcoded
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		TArray<FRotator> relativeGunRotations;
+
+	//*********************END**************************//
+
+
+	//****************Weapon Functionality****************//
+	//This handles visual and audio aspect of weapons
+
+	//This spawns gunsmoke at the muzzle of the gun
+	UFUNCTION()
+		void SpawnGunSmoke();
+
+	//Spawns bulletsmoke at point of impact when firing
+	UFUNCTION()
+		void SpawnBulletImpact(FVector Loc, FRotator Rot);
+
+	//Bullet smoke 
+	UPROPERTY(EditDefaultsOnly, Category = "Guns")
+		TSubclassOf<AActor> BulletImpact;
+
+	//This is what is expelled from the guns barrel upon firing as smoke
+	UPROPERTY(EditDefaultsOnly, Category = "Guns")
+		TSubclassOf<AActor> GunSmoke;
+
+	//This is used to chnage the weapon the player is carrying
+	UFUNCTION(BlueprintCallable, Category = "Guns")
+		void changeGunEquipped(int gunNumberFromGunList, int weaponDamage, int weapontype, int currentRateOfFire);
+
+	//This is called by an external force to test for Automatic weapon firing status; it then calls c++ function "fullyautomaticfiring
+	UFUNCTION(BlueprintCallable, Category = "Guns")
+		void CallFullAuto();
+
+	//This is passed to the changeGunEquipped function and is used to determine which type of attack to use, where 0 = semi, 1 = auto, 2 = melee, 3 = burst, etc
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		int currentFireType;
+
+	//This is used by a timer, and determines how fast a fully automatic weapon fires.  
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		int rateOfFire;
+
+	//*********************END***************************//
+
+private:
+		//this raycast is for firing weapons
+		void DoRayCast();
+		void SemiAutomaticFire();
+		void FullyAutomaticFire();
+		void FireSoundAndAnimation();
 
 protected:
 	UInventory* inventory;
@@ -177,8 +246,18 @@ protected:
 	TArray<UAbility*> abilities;
 	TMap<EPosition, UWeapon*> equippedWeapons;
 
+
+	//aims down the sight
+	void OnAim();
+
+	//looses aim 
+	void OnHip();
+
 	/** Fires a projectile. */
 	void OnFire();
+
+	//sets a boolean to false upon trigger release, so that automatic weapons may stop firing;
+	void StopFire();
 
 	/** Resets HMD orientation and position in VR. */
 	void OnResetVR();
@@ -233,5 +312,10 @@ public:
 	/** Returns FirstPersonCameraComponent subobject **/
 	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
-};
+	//timer to be used by automatic weapon firing functions
+	float firearmTimer;
 
+	//used in automatic firing
+	bool isFiring;
+
+};
