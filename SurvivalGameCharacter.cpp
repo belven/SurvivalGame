@@ -555,16 +555,7 @@ bool ASurvivalGameCharacter::IsAlive()
 
 void ASurvivalGameCharacter::InteractWithTarget(ASurvivalGameCharacter* target)
 {
-	// Assumed Enemy for now. Need to implement friend foe system
-	if (CanAttack() && IsAlive() && target->IsAlive()) {
-		TArray<UWeapon*> weapons;
-
-		equipedWeapons.GenerateValueArray(weapons);
-
-		for (UWeapon* weapon : weapons) {
-			weapon->AttackTarget(target);
-		}
-	}
+	
 }
 
 bool ASurvivalGameCharacter::CanAttack()
