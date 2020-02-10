@@ -50,16 +50,16 @@ ASurvivalGameCharacter::ASurvivalGameCharacter()
 	Mesh1P->SetRelativeLocation(FVector(-0.5f, -4.4f, -155.7f));
 
 	// Create a gun mesh component
-	FP_Gun = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FP_Gun"));
-	FP_Gun->SetOnlyOwnerSee(true);			// only the owning player will see this mesh
-	FP_Gun->bCastDynamicShadow = false;
-	FP_Gun->CastShadow = false;
+	SetFPGun(CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("FP_Gun")));
+	GetFPGun()->SetOnlyOwnerSee(true);			// only the owning player will see this mesh
+	GetFPGun()->bCastDynamicShadow = false;
+	GetFPGun()->CastShadow = false;
 	// FP_Gun->SetupAttachment(Mesh1P, TEXT("GripPoint"));
-	FP_Gun->SetupAttachment(RootComponent);
+	GetFPGun()->SetupAttachment(RootComponent);
 
-	FP_MuzzleLocation = CreateDefaultSubobject<USceneComponent>(TEXT("MuzzleLocation"));
-	FP_MuzzleLocation->SetupAttachment(FP_Gun);
-	FP_MuzzleLocation->SetRelativeLocation(FVector(0.2f, 48.4f, -10.6f));
+	SetFPMuzzleLocation(CreateDefaultSubobject<USceneComponent>(TEXT("MuzzleLocation")));
+	GetFPMuzzleLocation()->SetupAttachment(GetFPGun());
+	GetFPMuzzleLocation()->SetRelativeLocation(FVector(0.2f, 48.4f, -10.6f));
 
 	// Default offset from the character location for projectiles to spawn
 	GunOffset = FVector(100.0f, 0.0f, 10.0f);
@@ -98,7 +98,7 @@ void ASurvivalGameCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
-	FP_Gun->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
+	GetFPGun()->AttachToComponent(Mesh1P, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, true), TEXT("GripPoint"));
 
 	// Show or hide the two versions of the gun based on whether or not we're using motion controllers.
 	if (bUsingMotionControllers)
@@ -135,10 +135,10 @@ void ASurvivalGameCharacter::SetupWithLoadout(int32 loadoutID) {
 			weaponPair.Key = weaponPosition.Key;
 			weaponPair.Value = Cast<UWeapon>(UItemContainer::LoadItem(weaponPosition.Value));
 
-			GetWeapons().Add(weaponPair);
+			EquipWeapon(weaponPair);
 		}
 
-		/*for (int32 armourID : ourloadout->equippedArmour) {
+		for (int32 armourID : ourloadout->equippedArmour) {
 			UArmour* armourFound = Cast<UArmour>(UItemContainer::LoadItem(armourID));
 
 			if (armourFound != nullptr) {
@@ -148,7 +148,7 @@ void ASurvivalGameCharacter::SetupWithLoadout(int32 loadoutID) {
 
 				GetArmour().Add(armourPair);
 			}
-		}*/
+		}
 
 		MaximiseStats();
 	}
@@ -197,7 +197,7 @@ void ASurvivalGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 //this is used to test for automatic firing status
 void ASurvivalGameCharacter::CallFullAuto()
 {
-	if (isFiring == true) 
+	if (isFiring == true)
 	{
 		FullyAutomaticFire();
 	}
@@ -206,11 +206,11 @@ void ASurvivalGameCharacter::CallFullAuto()
 //This is callable by blueprints; Sets the mesh and transforms of the player's held weapon upon switching weapons, as well as how much damage should be dealt.
 void ASurvivalGameCharacter::changeGunEquipped(int gunNumber, int weaponDamage, int weapontype, int currentRateOfFire)
 {
-	FP_Gun->SetSkeletalMesh(gunList[gunNumber]);
-	FP_Gun->SetRelativeRotation(relativeGunRotations[gunNumber]);
-	FP_Gun->SetRelativeLocation(relativeGunLocation[gunNumber]);
-	FP_Gun->SetWorldScale3D(gunScale[gunNumber]);	
-	FP_MuzzleLocation->SetRelativeLocation(relativeMuzzleLocation[gunNumber]);
+	GetFPGun()->SetSkeletalMesh(gunList[gunNumber]);
+	GetFPGun()->SetRelativeRotation(relativeGunRotations[gunNumber]);
+	GetFPGun()->SetRelativeLocation(relativeGunLocation[gunNumber]);
+	GetFPGun()->SetWorldScale3D(gunScale[gunNumber]);
+	GetFPMuzzleLocation()->SetRelativeLocation(relativeMuzzleLocation[gunNumber]);
 	//DamageToDealToEnemy = weaponDamage
 	currentFireType = weapontype;
 	rateOfFire = currentRateOfFire;
@@ -244,24 +244,24 @@ void ASurvivalGameCharacter::OnFire()
 void ASurvivalGameCharacter::OnAim()
 {
 	FirstPersonCameraComponent->SetFieldOfView(70.0f);
-	FP_Gun->SetVisibility(false);
+	GetFPGun()->SetVisibility(false);
 	//FP_GunADS->SetVisibility(true);
 }
 
 void ASurvivalGameCharacter::OnHip()
 {
 	FirstPersonCameraComponent->SetFieldOfView(90.0f);
-	FP_Gun->SetVisibility(true);
+	GetFPGun()->SetVisibility(true);
 	//FP_GunADS->SetVisibility(false);
 }
 
 //this creates a raycast upon firing for dealing damage, calls other related functions; this is called by semiautomaticfire and fullyautomaticfire
-void ASurvivalGameCharacter::DoRayCast() 
+void ASurvivalGameCharacter::DoRayCast()
 {
 	FHitResult* HitResult = new FHitResult();
 	FVector StartTrace = FirstPersonCameraComponent->GetComponentLocation();
 	FVector forwardVector = FirstPersonCameraComponent->GetForwardVector();
-	FVector EndTrace = ((forwardVector*20000.f) + StartTrace);
+	FVector EndTrace = ((forwardVector * 20000.f) + StartTrace);
 	FCollisionQueryParams* TraceParams = new FCollisionQueryParams();
 
 
@@ -288,18 +288,18 @@ void ASurvivalGameCharacter::DoRayCast()
 		SpawnBulletImpact(Locs, Rots);
 		FireSoundAndAnimation();
 		SpawnGunSmoke();
-		
+
 	}
 }
 
 //called by onfire
-void ASurvivalGameCharacter::SemiAutomaticFire() 
+void ASurvivalGameCharacter::SemiAutomaticFire()
 {
 	DoRayCast();
 	//ammoInMagazine -=1;
 }
 //called by a timer or tick when isFiring = true
-void ASurvivalGameCharacter::FullyAutomaticFire() 
+void ASurvivalGameCharacter::FullyAutomaticFire()
 {
 	firearmTimer -= 1;
 	if (firearmTimer < 5)
@@ -310,11 +310,11 @@ void ASurvivalGameCharacter::FullyAutomaticFire()
 		//reset timer, buffer between shots. rateOfFire is set on weapon switch 
 		firearmTimer = rateOfFire;
 	}
-	
+
 }
 
 //this is called by doraycast
-void ASurvivalGameCharacter::FireSoundAndAnimation() 
+void ASurvivalGameCharacter::FireSoundAndAnimation()
 {
 	// try and play the sound if specified
 	if (FireSound != NULL)
@@ -341,7 +341,7 @@ void ASurvivalGameCharacter::SpawnGunSmoke()
 	SpawnRotation = GetControlRotation();
 
 	FVector x;
-	x = ((FP_MuzzleLocation != nullptr) ? FP_MuzzleLocation->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
+	x = ((GetFPMuzzleLocation() != nullptr) ? GetFPMuzzleLocation()->GetComponentLocation() : GetActorLocation()) + SpawnRotation.RotateVector(GunOffset);
 
 
 	FActorSpawnParameters SpawnParams;
@@ -387,44 +387,6 @@ void ASurvivalGameCharacter::EndTouch(const ETouchIndex::Type FingerIndex, const
 	TouchItem.bIsPressed = false;
 }
 
-//Commenting this section out to be consistent with FPS BP template.
-//This allows the user to turn without using the right virtual joystick
-
-//void ASurvivalGameCharacter::TouchUpdate(const ETouchIndex::Type FingerIndex, const FVector Location)
-//{
-//	if ((TouchItem.bIsPressed == true) && (TouchItem.FingerIndex == FingerIndex))
-//	{
-//		if (TouchItem.bIsPressed)
-//		{
-//			if (GetWorld() != nullptr)
-//			{
-//				UGameViewportClient* ViewportClient = GetWorld()->GetGameViewport();
-//				if (ViewportClient != nullptr)
-//				{
-//					FVector MoveDelta = Location - TouchItem.Location;
-//					FVector2D ScreenSize;
-//					ViewportClient->GetViewportSize(ScreenSize);
-//					FVector2D ScaledDelta = FVector2D(MoveDelta.X, MoveDelta.Y) / ScreenSize;
-//					if (FMath::Abs(ScaledDelta.X) >= 4.0 / ScreenSize.X)
-//					{
-//						TouchItem.bMoved = true;
-//						float Value = ScaledDelta.X * BaseTurnRate;
-//						AddControllerYawInput(Value);
-//					}
-//					if (FMath::Abs(ScaledDelta.Y) >= 4.0 / ScreenSize.Y)
-//					{
-//						TouchItem.bMoved = true;
-//						float Value = ScaledDelta.Y * BaseTurnRate;
-//						AddControllerPitchInput(Value);
-//					}
-//					TouchItem.Location = Location;
-//				}
-//				TouchItem.Location = Location;
-//			}
-//		}
-//	}
-//}
-
 void ASurvivalGameCharacter::MoveForward(float Value)
 {
 	if (Value != 0.0f)
@@ -468,6 +430,57 @@ bool ASurvivalGameCharacter::EnableTouchscreenMovement(class UInputComponent* Pl
 	}
 
 	return false;
+}
+
+void ASurvivalGameCharacter::EquipWeapon(TPair<EPosition, UWeapon*> weaponPair)
+{
+	EPosition weaponPosition = weaponPair.Key;
+	UWeapon* weapon = weaponPair.Value;
+
+	bool couldUnequip = true;
+
+	// Check if we're already equipping something in the same position
+	if (GetWeapons().Find(weaponPosition) != nullptr) {
+		couldUnequip = UnEquipWeapon(weaponPosition);
+	}
+	else {
+		// this should return false if any of them can't be unequipped
+		couldUnequip &= UnEquipWeapon(EPosition::LEFT_HAND);
+		couldUnequip &= UnEquipWeapon(EPosition::RIGHT_HAND);
+		couldUnequip &= UnEquipWeapon(EPosition::BOTH_HANDS);
+	}
+
+	if (couldUnequip) {
+		// TODO Work this part out
+		//GetFPGun()->SetSkeletalMesh(gunList[gunNumber]);
+		//GetFPGun()->SetRelativeRotation(relativeGunRotations[gunNumber]);
+		//GetFPGun()->SetRelativeLocation(relativeGunLocation[gunNumber]);
+		//GetFPGun()->SetWorldScale3D(gunScale[gunNumber]);
+		//GetFPMuzzleLocation()->SetRelativeLocation(relativeMuzzleLocation[gunNumber]);
+		AddWeaponPair(weaponPair);
+	}
+}
+
+void ASurvivalGameCharacter::AddWeaponPair(TPair<EPosition, UWeapon*> weaponPair)
+{
+	GetWeapons().Add(weaponPair);
+}
+
+bool ASurvivalGameCharacter::UnEquipWeapon(EPosition weaponPosition)
+{
+	UWeapon* weapon = *GetWeapons().Find(weaponPosition);
+
+	if (weapon != nullptr) {
+		if (weapon->CanSwap()) {
+			// Remove attached weapon model, sounds, stop firing etc
+			weapon->Stop();
+		}
+		else {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 UStat* ASurvivalGameCharacter::GetStatByName(FText statName)

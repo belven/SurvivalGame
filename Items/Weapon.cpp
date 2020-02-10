@@ -58,3 +58,14 @@ void UWeapon::AttackTarget(ASurvivalGameCharacter* target)
 		FireWeapon(target);
 	}
 }
+
+bool UWeapon::CanSwap()
+{
+	// This should be based on, if an animation is still completing, maybe reloading, a killing move with a melee weapon etc.
+	return true;
+}
+
+void UWeapon::Stop()
+{
+	// Stop doing everything, shooting, sound, particle effects etc.
+}

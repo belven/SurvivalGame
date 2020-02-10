@@ -24,6 +24,18 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "ID")
 		int32 ID;
+
+	UInventory* inventory;
+	USkillTree* skillTree;
+	TArray<UAbility*> abilities;
+	TMap<EPosition, UWeapon*> equippedWeapons;
+
+	//this raycast is for firing weapons
+	void DoRayCast();
+	void SemiAutomaticFire();
+	void FullyAutomaticFire();
+	void FireSoundAndAnimation();
+
 	/** Pawn mesh: 1st person view (arms; seen only by self) */
 	UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
 		class USkeletalMeshComponent* Mesh1P;
@@ -71,6 +83,7 @@ private:
 	UPROPERTY(EditAnywhere, Category = "Name")
 		FText characterName;
 
+public:
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 		void MaximiseStats();
 
@@ -82,7 +95,7 @@ private:
 
 	UFUNCTION(BlueprintCallable, Category = "Stats")
 		bool CanAttack();
-public:
+
 	static const FText healthStatName;
 	ASurvivalGameCharacter();
 
@@ -117,6 +130,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 		uint32 bUsingMotionControllers : 1;
 
+	/** Returns Mesh1P subobject **/
+	FORCEINLINE class USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
+	/** Returns FirstPersonCameraComponent subobject **/
+	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
+
+	//timer to be used by automatic weapon firing functions
+	float firearmTimer;
+
+	//used in automatic firing
+	bool isFiring;
 
 	UFUNCTION(BlueprintCallable, Category = "Loadout")
 		void SetupWithLoadout(int32 loadoutID);
@@ -231,21 +254,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
 		int rateOfFire;
 
+	class USkeletalMeshComponent* GetFPGun() const { return FP_Gun; }
+	void SetFPGun(class USkeletalMeshComponent* val) { FP_Gun = val; }
+	class USceneComponent* GetFPMuzzleLocation() const { return FP_MuzzleLocation; }
+	void SetFPMuzzleLocation(class USceneComponent* val) { FP_MuzzleLocation = val; }
 	//*********************END***************************//
-
-private:
-		//this raycast is for firing weapons
-		void DoRayCast();
-		void SemiAutomaticFire();
-		void FullyAutomaticFire();
-		void FireSoundAndAnimation();
-
-protected:
-	UInventory* inventory;
-	USkillTree* skillTree;
-	TArray<UAbility*> abilities;
-	TMap<EPosition, UWeapon*> equippedWeapons;
-
 
 	//aims down the sight
 	void OnAim();
@@ -293,7 +306,6 @@ protected:
 	void TouchUpdate(const ETouchIndex::Type FingerIndex, const FVector Location);
 	TouchData	TouchItem;
 
-protected:
 	// APawn interface
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
 	// End of APawn interface
@@ -306,16 +318,11 @@ protected:
 	 */
 	bool EnableTouchscreenMovement(UInputComponent* InputComponent);
 
-public:
-	/** Returns Mesh1P subobject **/
-	FORCEINLINE class USkeletalMeshComponent* GetMesh1P() const { return Mesh1P; }
-	/** Returns FirstPersonCameraComponent subobject **/
-	FORCEINLINE class UCameraComponent* GetFirstPersonCameraComponent() const { return FirstPersonCameraComponent; }
 
-	//timer to be used by automatic weapon firing functions
-	float firearmTimer;
+private:
+	void EquipWeapon(TPair<EPosition, UWeapon*> weaponPair);
 
-	//used in automatic firing
-	bool isFiring;
+	void AddWeaponPair(TPair<EPosition, UWeapon*> weaponPair);
 
+	bool UnEquipWeapon(EPosition weaponPosition);
 };

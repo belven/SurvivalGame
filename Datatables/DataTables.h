@@ -16,7 +16,10 @@ enum class  EPosition : uint8 {
 	LEFT_SHOULDER,
 	RIGHT_SHOULDER,
 	LEFT_ARM,
-	RIGHT_ARM
+	RIGHT_ARM,
+	LEFT_HAND,
+	RIGHT_HAND,
+	BOTH_HANDS
 };
 
 USTRUCT(BlueprintType)
@@ -72,6 +75,26 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Specification")
 		bool heals;
+
+	//This array holds skeletal meshes for weapons 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		FString gunMesh;
+
+	//This holds scale for weapon meshes
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		FVector gunScale;
+
+	//This holds location for weapon meshes relative to the gun
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		FVector relativeGunLocation;
+
+	//This holds location for gun muzzle to determine location of muzzle flash and smoke
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		FVector relativeMuzzleLocation;
+
+	//This holds rotation for weapon meshes
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Guns")
+		FRotator relativeGunRotations;
 };
 
 USTRUCT(BlueprintType)

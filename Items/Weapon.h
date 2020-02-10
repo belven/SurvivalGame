@@ -26,4 +26,6 @@ public:
 	void SetWeaponSpecification(FWeaponSpecification* val) { weaponSpecification = val; }
 	void AttackTarget(ASurvivalGameCharacter* target);
 	
+	bool CanSwap();
+	void Stop();
 };
